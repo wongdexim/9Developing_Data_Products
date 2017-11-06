@@ -1,0 +1,52 @@
+basketball MarkDown Presentation and Plotly
+========================================================
+author: Daniel Wong
+date: 10/29/2017
+autosize: true
+
+Topic
+========================================================
+Upcoming graph is a 3D view of NBA basketball players by age, usage, and win shares per 48 minutes
+
+- Age - Year in which the player started the 2017 season
+- Usage - % in which the player has the ball while in the game (the higher the usage rate, the more a player has the ball)
+- Win Share per 48 minutes - Players impact on winning an nba basketball game, commonly used advanced metric to measure the quality of the player (the higher the number, the more )
+- Graph will only include players that have played at least 50 games and 2000 minutes during the 2017 season
+
+
+Plotly Graph
+========================================================
+
+```{r, echo=FALSE}
+#install.packages("xlsx", repos = "http://cran.us.r-project.org")
+library(xlsx)
+
+#install.packages("plotly", repos = "http://cran.us.r-project.org")
+library(plotly)
+
+library(webshot)
+
+setwd("C://Users//WongD//Documents//R//R-3.3.1//r programming")
+raw_data<-read.xlsx("basketball.xlsx", sheetName = "basketball")
+
+CleanData<-raw_data
+CleanData$Dup<-duplicated(CleanData$Player)
+
+DupsList<-subset(CleanData, Dup==TRUE)
+DupsList<-DupsList[!duplicated(DupsList$Player), ]
+
+CleanData <- CleanData[!(CleanData$Player %in% DupsList$Player & CleanData$Tm !="TOT"),]
+
+p<-plot_ly(subset(CleanData, G>=50 & MP>=2000), 
+           x = ~WS.48, y = ~USG., z = ~Age, 
+           type = "scatter3d", mode='markers', 
+           hoverinfo='text',
+           marker = list(color = ~Age, colorscale = c('#FFE1A1', '#683531'), showscale = TRUE), 
+           text = ~paste('Player:', Player, '<br> Win shares per 48 mins:', WS.48, '<br> Usage per game:', USG., '%', '<br> Age:', Age)
+          )
+
+htmlwidgets::saveWidget(as_widget(p), file="test.html")
+
+```
+
+<iframe src="test.html" style="position:absolute;height:100%;width:100%"></iframe>

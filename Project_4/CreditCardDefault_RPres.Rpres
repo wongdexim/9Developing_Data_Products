@@ -1,0 +1,175 @@
+Credit Card Default Rate Prediction
+========================================================
+author: Daniel Wong
+date: 11/8/2017
+autosize: true
+
+Predicting Default Rate of Credit Card Users - Steps Taken
+========================================================
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(ISLR)
+library(ggplot2)
+library(plyr)
+library(magrittr)
+library(gridExtra)
+```
+
+1. Initial Data analysis, cleansing, and formatting of credit card data
+2. Exploratory Data Analysis
+3. Data Modeling and Tool that predicts default rate based on credit card user characteristics
+
+- all code uploaded on: https://github.com/wongdexim/9Developing_Data_Products/tree/master/Project_4
+
+1. Initial Data analysis, cleansing, and formatting of credit card data
+========================================================
+- Data Source: package "ISLR", data frame "Default" 
+```{r, message=FALSE, warning= FALSE, echo=FALSE}
+#initial data review
+summary(Default)
+```
+
+- Initial summary of the Credit Card:
+  - 4 fields: Balance, Income, Student, and Default
+  - Fields Default and Student set as Yes/No (binary outcome)
+```{r, message=FALSE, warning= FALSE, echo=FALSE}
+library(ISLR)
+library(ggplot2)
+library(dplyr)
+library(magrittr)
+
+#loading data
+CreditCard<-data.frame(Default)
+
+#relationship between student and default rate
+table(CreditCard$student, CreditCard$default)
+
+xData<-c(as.numeric(count(subset(CreditCard, student=="Yes" & default=="Yes"))/count(subset(CreditCard, student=="Yes"))),
+         as.numeric(count(subset(CreditCard, student=="No" & default=="Yes"))/count(subset(CreditCard, student=="No"))),
+         as.numeric(count(subset(CreditCard, default=="Yes"))/count(CreditCard))
+         )
+               
+yData<-c(mean(subset(CreditCard$balance, CreditCard$student=="Yes")),
+         mean(subset(CreditCard$balance, CreditCard$student=="No")),
+         mean(CreditCard$balance)
+         )
+
+zData<-c(mean(subset(CreditCard$income, CreditCard$student=="Yes")),
+         mean(subset(CreditCard$income, CreditCard$student=="No")),
+          mean(CreditCard$income)
+         )
+
+xName<-"DefaultRate"
+yName<-"MeanBalance"
+zName<-"MeanIncome"
+
+DataSummary <- data.frame(xData,yData,zData)
+names(DataSummary) <-c(xName, yName, zName)
+rownames(DataSummary)<-c("student", "non-student", "total")
+
+print(DataSummary)
+  #data cleansing
+  #convert default and Student into 1 and 0
+  CreditCard$default <- factor(CreditCard$default, levels=c("No", "Yes"), labels=c(0,1))
+  CreditCard$student <- factor(CreditCard$student, levels=c("No", "Yes"), labels=c(0,1))
+  CreditCard$default <- as.numeric(CreditCard$default)-1
+  CreditCard$student <- as.numeric(CreditCard$student)-1
+  #add balance income ratio
+  CreditCard$BalIncRatio<-CreditCard$balance / CreditCard$income
+```
+
+
+- Spliting population by student/non-student shows significant differences between the two population, with default rate being significantly higher & Credit Card and Income mean significantly lower for the student population.
+
+2. Data Analysis - Pairs Analysis (part 1 of 3)
+========================================================
+
+- Pairs analysis show independent variable "balance" and "student" having the highest correlation to dependent variable "default". 
+- Suprisingly, user created iindepedent variable "capacity to repay" (balance/income ratio)'s correlation coefficient to "default" is lower than independent variable "balance" by itself. 
+
+```{r, message=FALSE, warning= FALSE, echo=FALSE}
+library(ISLR)
+library(ggplot2)
+library(dplyr)
+library(magrittr)
+library(gridExtra)
+library(GGally)
+library(reshape2)
+#exploratory analysis
+  #pairs analysis
+  ggpairs(CreditCard)
+  # pairs(~default+student+balance+income+BalIncRatio, data=CreditCard)
+```
+
+
+2. Data Analysis - Histogram/Distribution (part 2 of 3)
+========================================================
+- The distribution of capacity to repay rate (balance/income ratio), balance, and income yielded expected results. 
+  - Majority of credit card's usage is well below a peron's income. 
+  - Credit card balance is normally distributed, with the exception of a large number of zero balance. This represents credit cards that are not used at all. 
+  - The two peaks for income distribution makes sense as well, given that there is a (non-student) working population and a student population. 
+
+```{r, message=FALSE, warning= FALSE, echo=FALSE}
+library(ISLR)
+library(ggplot2)
+library(dplyr)
+library(magrittr)
+library(gridExtra)
+
+  #histogram
+  grid.arrange(qplot(CreditCard$BalIncRatio, geom="histogram"), 
+              arrangeGrob(qplot(CreditCard$balance, geom="histogram"),qplot(CreditCard$income, geom="histogram"), ncol=2),
+              nrow=2)
+
+
+```
+
+2. Data Analysis - HeatMap (part 3 of 3)
+========================================================
+- The heatmaps below split variable "income" and "balance" into 1/16ths, with the higher digits representing higher income or balance.
+  - The heatmaps confirm previous analysis that balance is overwhelmingly the most important factor for default predictions within this data set.
+  - The heatmaps doesn't show any clear impact between income and default rate. 
+  - Both the student and working population show similar patterns of defaults by income and balance.
+
+```{r, message=FALSE, warning= FALSE, echo=FALSE}
+library(ISLR)
+library(ggplot2)
+library(dplyr)
+library(magrittr)
+library(gridExtra)
+
+#exploratory analysis
+  #cut balance and income into 16ths
+  CreditCard <- within(CreditCard, Bal16 <- as.integer(cut(balance, quantile(balance, probs=0:16/16), include.lowest=TRUE)))
+  CreditCard <- within(CreditCard, Inc16 <- as.integer(cut(income, quantile(income, probs=0:16/16), include.lowest=TRUE)))
+  
+  #add balance income ratio
+  CreditCard$BalIncRatio<-CreditCard$balance / CreditCard$income
+  CreditCard <- within(CreditCard, BalInc16 <- as.integer(cut(BalIncRatio, quantile(BalIncRatio, probs=0:16/16), include.lowest=TRUE)))
+
+
+  #heatmap matrix by balance and income bands
+  HeatMap<-CreditCard %>%group_by(Bal16, Inc16) %>% summarize(DRate=mean(default))
+  HeatMapPlot1 <- ggplot(HeatMap, aes(Bal16, Inc16)) + geom_tile(aes(fill = DRate), colour = "white") + scale_fill_gradient(low = "white", high = "steelblue")+ ggtitle("Default Rate for the Whole Population by Balance and Income")
+
+  HeatMapS<-subset(CreditCard, student=="1")%>%group_by(Bal16, Inc16) %>% summarize(DRate=mean(default))
+  HeatMapPlot2 <- ggplot(HeatMap, aes(Bal16, Inc16)) + geom_tile(aes(fill = DRate), colour = "white") + scale_fill_gradient(low = "white", high = "steelblue")+ ggtitle("... for the Student Population ...")
+
+  HeatMapNoS<-subset(CreditCard, student=="0")%>%group_by(Bal16, Inc16) %>% summarize(DRate=mean(default))
+  HeatMapPlot3 <- ggplot(HeatMap, aes(Bal16, Inc16)) + geom_tile(aes(fill = DRate), colour = "white") + scale_fill_gradient(low = "white", high = "steelblue")+ ggtitle("... for the non-Student Population ...")
+
+  grid.arrange(HeatMapPlot1, 
+              arrangeGrob(HeatMapPlot2,HeatMapPlot3, ncol=2),
+              nrow=2)
+```
+
+3. Data Modeling and Default Rate Prediction based on inputs
+========================================================
+- For demonstration purposes, the credit card default rate model is based on the given data.
+- There will be three inputs: income, balance, and student.
+    - This is a departure from the data analysis, which would suggest that the default rate model should only focus on balance and student.
+- The output will be a graph with a curve signifying Probability of default, and the predicted probability of default given the balance/income ratio.
+- Tool at: https://dwong0021.shinyapps.io/creditcarddefault/
+
+
